@@ -481,7 +481,7 @@ fun MainShell(
                     contentColor = BrandNavyBlack,
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
-                        .padding(bottom = 28.dp, end = 12.dp)
+                        .padding(bottom = 48.dp, end = 20.dp)
                         .testTag("floating_add_button")
                 ) {
                     Icon(
@@ -2906,7 +2906,10 @@ fun LogExpenseDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
         Box(
             modifier = Modifier
