@@ -1171,7 +1171,7 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             // Progress bar
                             LinearProgressIndicator(
-                                progress = { 0.65f },
+                                progress = 0.65f,
                                 color = BrandLime,
                                 trackColor = Color(0xFF2B3544),
                                 modifier = Modifier
@@ -1284,7 +1284,7 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 LinearProgressIndicator(
-                                    progress = { category.third },
+                                    progress = category.third,
                                     color = when (category.first) {
                                         "Food" -> BrandOrange
                                         "Transport" -> BrandBlue
@@ -1807,7 +1807,7 @@ fun MyProfileScreen(
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             LinearProgressIndicator(
-                                progress = { progressPercent / 100f },
+                                progress = progressPercent / 100f,
                                 color = BrandLime,
                                 trackColor = Color(0xFF2B3544),
                                 modifier = Modifier
@@ -2328,7 +2328,7 @@ fun LevelProgressScreen(
                         // XP track percentage
                         Column(modifier = Modifier.fillMaxWidth()) {
                             LinearProgressIndicator(
-                                progress = { progressRatePct / 100f },
+                                progress = progressRatePct / 100f,
                                 color = BrandLime,
                                 trackColor = Color(0xFF1F2937),
                                 modifier = Modifier
