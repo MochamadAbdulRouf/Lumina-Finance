@@ -17,14 +17,12 @@ import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.FinanceViewModel
 
 class MainActivity : ComponentActivity() {
-  private val viewModel: FinanceViewModel by viewModels()
-
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
     setContent {
       MyApplicationTheme {
-        FinanceApp(viewModel = viewModel)
+        FinanceApp()
       }
     }
   }

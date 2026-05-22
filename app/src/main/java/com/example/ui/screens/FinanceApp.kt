@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.model.BudgetSettings
 import com.example.data.model.Transaction
 import com.example.data.model.UserProfile
@@ -68,7 +69,7 @@ fun formatDateTime(timestamp: Long, format: String = "dd MMM yyyy, HH:mm"): Stri
 }
 
 @Composable
-fun FinanceApp(viewModel: FinanceViewModel) {
+fun FinanceApp(viewModel: FinanceViewModel = viewModel()) {
     val userProfile by viewModel.userProfile.collectAsState()
     val budgetSettings by viewModel.budgetSettings.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
