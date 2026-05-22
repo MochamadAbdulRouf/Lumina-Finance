@@ -698,6 +698,9 @@ fun HomeScreen(
     val userProfile by viewModel.userProfile.collectAsState()
     val budgetSettings by viewModel.budgetSettings.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
+    val categorySummaries by viewModel.categorySummaries.collectAsState()
+    val totalExpense by viewModel.totalExpense.collectAsState()
+    val todayCategoryPercentages by viewModel.todayCategoryPercentages.collectAsState()
 
     var showDeleteConfirm by remember { mutableStateOf<Transaction?>(null) }
 
@@ -867,12 +870,17 @@ fun HomeScreen(
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
 
-                    val categoriesList = listOf(
-                        Triple("Food", Icons.Filled.Restaurant, "40%"),
-                        Triple("Transport", Icons.Filled.DirectionsCar, "15%"),
-                        Triple("Bills", Icons.Filled.ReceiptLong, "10%"),
-                        Triple("Shopping", Icons.Filled.ShoppingBag, "10%")
-                    )
+                    val categoriesList = remember(todayCategoryPercentages) {
+                        listOf(
+                            Triple("Food", Icons.Filled.Restaurant, "Food"),
+                            Triple("Transport", Icons.Filled.DirectionsCar, "Transport"),
+                            Triple("Bills", Icons.Filled.ReceiptLong, "Bills"),
+                            Triple("Shopping", Icons.Filled.ShoppingBag, "Shopping")
+                        ).map { (name, icon, categoryKey) ->
+                            val pct = todayCategoryPercentages[categoryKey] ?: 0
+                            Triple(name, icon, "$pct%")
+                        }
+                    }
 
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1082,9 +1090,28 @@ fun HomeScreen(
 fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
     val transactions by viewModel.transactions.collectAsState()
     val budgetSettings by viewModel.budgetSettings.collectAsState()
+    val categorySummaries by viewModel.categorySummaries.collectAsState()
+    val totalExpenseReactive by viewModel.totalExpense.collectAsState()
 
     // Aggregate totals
     val totalExpense = transactions.sumOf { it.amount }
+
+    // Dynamic list of Categories computed outside the LazyColumn builder lambda
+    val list = remember(categorySummaries, totalExpenseReactive) {
+        val baseCategories = listOf("Food", "Transport", "Bills", "Shopping", "Entertainment", "Others")
+        val activeCategories = categorySummaries.map { (catName, catAmt) ->
+            val pct = if (totalExpenseReactive > 0.0) (catAmt / totalExpenseReactive).toFloat() else 0.0f
+            Triple(catName, catAmt, pct)
+        }.filter { it.second > 0 }.sortedByDescending { it.second }
+        
+        if (activeCategories.isEmpty()) {
+            baseCategories.map { catName ->
+                Triple(catName, 0.0, 0.0f)
+            }
+        } else {
+            activeCategories
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Sticky Top bar for Analytics
@@ -1348,13 +1375,6 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                 }
             }
 
-            // Static visual list of Categories
-            val list = listOf(
-                Triple("Food", 382500.0, 0.45f),
-                Triple("Transport", 170000.0, 0.20f),
-                Triple("Shopping", 127500.0, 0.15f)
-            )
-
             items(list) { category ->
                 Surface(
                     color = Color(0xFF16202E),
@@ -1376,7 +1396,10 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                                     when (category.first) {
                                         "Food" -> BrandOrange.copy(alpha = 0.2f)
                                         "Transport" -> BrandBlue.copy(alpha = 0.2f)
-                                        else -> BrandPurple.copy(alpha = 0.2f)
+                                        "Bills" -> BrandPurple.copy(alpha = 0.2f)
+                                        "Shopping" -> BrandGreen.copy(alpha = 0.2f)
+                                        "Entertainment" -> BrandLime.copy(alpha = 0.2f)
+                                        else -> TextGrayMuted.copy(alpha = 0.2f)
                                     }
                                 ),
                             contentAlignment = Alignment.Center
@@ -1385,13 +1408,19 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                                 imageVector = when (category.first) {
                                     "Food" -> Icons.Filled.Restaurant
                                     "Transport" -> Icons.Filled.DirectionsCar
-                                    else -> Icons.Filled.ShoppingBag
+                                    "Bills" -> Icons.Filled.ReceiptLong
+                                    "Shopping" -> Icons.Filled.ShoppingBag
+                                    "Entertainment" -> Icons.Filled.Celebration
+                                    else -> Icons.Filled.MoreHoriz
                                 },
                                 contentDescription = category.first,
                                 tint = when (category.first) {
                                     "Food" -> BrandOrange
                                     "Transport" -> BrandBlue
-                                    else -> BrandPurple
+                                    "Bills" -> BrandPurple
+                                    "Shopping" -> BrandGreen
+                                    "Entertainment" -> BrandLime
+                                    else -> TextGrayMuted
                                 }
                             )
                         }
@@ -1424,7 +1453,10 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                                     color = when (category.first) {
                                         "Food" -> BrandOrange
                                         "Transport" -> BrandBlue
-                                        else -> BrandPurple
+                                        "Bills" -> BrandPurple
+                                        "Shopping" -> BrandGreen
+                                        "Entertainment" -> BrandLime
+                                        else -> TextGrayMuted
                                     },
                                     trackColor = Color(0xFF2B3544),
                                     modifier = Modifier

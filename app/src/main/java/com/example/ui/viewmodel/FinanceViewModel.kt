@@ -41,6 +41,49 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         .filterNotNull()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserProfile())
 
+    val categorySummaries: StateFlow<Map<String, Double>> = transactions
+        .map { txList ->
+            txList.groupBy { it.category }
+                .mapValues { entry -> entry.value.sumOf { it.amount } }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val totalExpense: StateFlow<Double> = transactions
+        .map { txList -> txList.sumOf { it.amount } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val dailyQuota: StateFlow<Double> = budgetSettings
+        .map { it.dailyLimit.let { limit -> if (limit <= 0.0) 50000.0 else limit } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 50000.0)
+
+    private fun isToday(timestamp: Long): Boolean {
+        val cal1 = java.util.Calendar.getInstance()
+        cal1.timeInMillis = timestamp
+        val cal2 = java.util.Calendar.getInstance()
+        cal2.timeInMillis = System.currentTimeMillis()
+        return cal1.get(java.util.Calendar.YEAR) == cal2.get(java.util.Calendar.YEAR) &&
+               cal1.get(java.util.Calendar.DAY_OF_YEAR) == cal2.get(java.util.Calendar.DAY_OF_YEAR)
+    }
+
+    val todayCategoryExpenses: StateFlow<Map<String, Double>> = transactions
+        .map { txList ->
+            txList.filter { isToday(it.dateTime) }
+                .groupBy { it.category }
+                .mapValues { entry -> entry.value.sumOf { it.amount } }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val todayCategoryPercentages: StateFlow<Map<String, Int>> = combine(todayCategoryExpenses, dailyQuota) { expenses, quota ->
+        val result = mutableMapOf<String, Int>()
+        val categories = listOf("Food", "Transport", "Bills", "Shopping", "Entertainment", "Others")
+        categories.forEach { cat ->
+            val amt = expenses[cat] ?: 0.0
+            val pct = if (quota > 0.0) ((amt / quota) * 100.0).toInt() else 0
+            result[cat] = pct
+        }
+        result
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
     // UI Input States for Forms
     // Log Expense Modal Form
     var expenseAmount = MutableStateFlow("0")
