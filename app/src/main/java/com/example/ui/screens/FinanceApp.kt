@@ -442,7 +442,7 @@ fun MainShell(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .padding(vertical = 8.dp),
+                        .padding(top = 4.dp, bottom = 4.dp),
                     horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -481,6 +481,7 @@ fun MainShell(
                     contentColor = BrandNavyBlack,
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
+                        .padding(bottom = 28.dp, end = 12.dp)
                         .testTag("floating_add_button")
                 ) {
                     Icon(
