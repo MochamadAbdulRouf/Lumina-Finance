@@ -80,7 +80,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     fun initWalletForm(budget: BudgetSettings) {
         walletBalance.value = budget.balance.toInt().toString()
-        monthlySpendingBudget.value = budget.monthlyBudget.toInt().toString()
+        monthlySpendingBudget.value = budget.balance.toInt().toString()
         dailySafeLimit.value = budget.dailyLimit.toInt().toString()
         isAutoCalcOn.value = budget.isAutoCalculateActive
     }
@@ -226,16 +226,19 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun saveWalletSettingsChanges(onSuccess: () -> Unit) {
-        val balanceVal = walletBalance.value.toDoubleOrNull() ?: 0.0
-        val mBudgetVal = monthlySpendingBudget.value.toDoubleOrNull() ?: 0.0
-        val dLimitVal = dailySafeLimit.value.toDoubleOrNull() ?: 0.0
+        val cleanBalance = walletBalance.value.replace("[^0-9]".toRegex(), "")
+        val balanceVal = cleanBalance.toDoubleOrNull() ?: 0.0
+        
+        val cleanLimit = dailySafeLimit.value.replace("[^0-9]".toRegex(), "")
+        val dLimitVal = cleanLimit.toDoubleOrNull() ?: 0.0
+        
         val isAutoCalcValue = isAutoCalcOn.value
 
         viewModelScope.launch {
             try {
                 repository.saveBudgetSettings(
                     balance = balanceVal,
-                    monthlyBudget = mBudgetVal,
+                    monthlyBudget = balanceVal,
                     dailyLimit = dLimitVal,
                     autoCalculate = isAutoCalcValue
                 )

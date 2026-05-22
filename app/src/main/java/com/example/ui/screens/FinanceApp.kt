@@ -73,6 +73,53 @@ fun formatDateTime(timestamp: Long, format: String = "dd MMM yyyy, HH:mm"): Stri
     return sdf.format(Date(timestamp))
 }
 
+class IndRupiahVisualTransformation : androidx.compose.ui.text.input.VisualTransformation {
+    override fun filter(text: androidx.compose.ui.text.AnnotatedString): androidx.compose.ui.text.input.TransformedText {
+        val originalText = text.text
+        if (originalText.isEmpty()) {
+            return androidx.compose.ui.text.input.TransformedText(androidx.compose.ui.text.AnnotatedString(""), androidx.compose.ui.text.input.OffsetMapping.Identity)
+        }
+        
+        val cleanText = originalText.replace("[^0-9]".toRegex(), "")
+        if (cleanText.isEmpty()) {
+            return androidx.compose.ui.text.input.TransformedText(androidx.compose.ui.text.AnnotatedString(""), androidx.compose.ui.text.input.OffsetMapping.Identity)
+        }
+        
+        val stringBuilder = StringBuilder()
+        var digitCount = 0
+        for (i in cleanText.length - 1 downTo 0) {
+            stringBuilder.append(cleanText[i])
+            digitCount++
+            if (digitCount % 3 == 0 && i != 0) {
+                stringBuilder.append('.')
+            }
+        }
+        val formattedText = stringBuilder.reverse().toString()
+        
+        val offsetMapping = object : androidx.compose.ui.text.input.OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int {
+                val realOffset = offset.coerceIn(0, cleanText.length)
+                var dotCount = 0
+                for (j in 1..realOffset) {
+                    if (j < cleanText.length && (cleanText.length - j) % 3 == 0) {
+                        dotCount++
+                    }
+                }
+                return realOffset + dotCount
+            }
+
+            override fun transformedToOriginal(offset: Int): Int {
+                val realOffset = offset.coerceIn(0, formattedText.length)
+                val substring = formattedText.substring(0, realOffset)
+                val dotCount = substring.count { it == '.' }
+                return (realOffset - dotCount).coerceIn(0, cleanText.length)
+            }
+        }
+        
+        return androidx.compose.ui.text.input.TransformedText(androidx.compose.ui.text.AnnotatedString(formattedText), offsetMapping)
+    }
+}
+
 @Composable
 fun FinanceApp(viewModel: FinanceViewModel = viewModel()) {
     val userProfile by viewModel.userProfile.collectAsState()
@@ -1034,6 +1081,7 @@ fun HomeScreen(
 @Composable
 fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
     val transactions by viewModel.transactions.collectAsState()
+    val budgetSettings by viewModel.budgetSettings.collectAsState()
 
     // Aggregate totals
     val totalExpense = transactions.sumOf { it.amount }
@@ -1225,6 +1273,10 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
 
             // Budget vs Spent Limit status
             item {
+                val totalFunds = budgetSettings.balance + totalExpense
+                val percentUsed = if (totalFunds > 0) (totalExpense / totalFunds) else 0.0
+                val percentUsedInt = (percentUsed * 100).toInt()
+
                 Column {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1232,13 +1284,13 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                         verticalAlignment = Alignment.Bottom
                     ) {
                         Text(
-                            text = "Budget Status",
+                            text = "Balance Status",
                             color = Color.White,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "65% Used",
+                            text = "$percentUsedInt% Spent",
                             color = BrandLime,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
@@ -1255,7 +1307,7 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             // Progress bar
                             LinearProgressIndicator(
-                                progress = 0.65f,
+                                progress = percentUsed.toFloat(),
                                 color = BrandLime,
                                 trackColor = Color(0xFF2B3544),
                                 modifier = Modifier
@@ -1265,7 +1317,7 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = "You have used 65% of your monthly budget. You're still on track!",
+                                text = "You have spent $percentUsedInt% of your total funds. Your total available balance is ${formatRupiah(budgetSettings.balance)}.",
                                 color = TextGrayMuted,
                                 fontSize = 14.sp,
                                 lineHeight = 20.sp
@@ -1560,31 +1612,35 @@ fun MyWalletScreen(viewModel: FinanceViewModel) {
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        // Monthly Spending Targets input
+                        // Total Available Balance input
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "MONTHLY SPENDING BUDGET",
+                                    text = "TOTAL AVAILABLE BALANCE",
                                     color = TextGrayMuted,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 0.05.sp
                                 )
                                 Icon(
-                                    imageVector = Icons.Filled.EditNote,
-                                    contentDescription = "Edit",
+                                    imageVector = Icons.Filled.AccountBalanceWallet,
+                                    contentDescription = "Wallet Balance",
                                     tint = TextGrayMuted,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
                             OutlinedTextField(
-                                value = mBudgetText,
-                                onValueChange = { viewModel.monthlySpendingBudget.value = it },
+                                value = balanceText,
+                                onValueChange = { input ->
+                                    val safeNum = input.replace("[^0-9]".toRegex(), "")
+                                    viewModel.walletBalance.value = safeNum
+                                },
                                 leadingIcon = { Text("Rp", color = TextGrayMuted, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 12.dp)) },
                                 modifier = Modifier.fillMaxWidth(),
+                                visualTransformation = IndRupiahVisualTransformation(),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White,
@@ -1597,7 +1653,7 @@ fun MyWalletScreen(viewModel: FinanceViewModel) {
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                             )
                             Text(
-                                text = "Your total limit for the month",
+                                text = "Your current total available wallet/bank balance",
                                 color = TextGrayMuted,
                                 fontSize = 11.sp
                             )
@@ -1614,9 +1670,13 @@ fun MyWalletScreen(viewModel: FinanceViewModel) {
                             )
                             OutlinedTextField(
                                 value = dLimitText,
-                                onValueChange = { viewModel.dailySafeLimit.value = it },
+                                onValueChange = { input ->
+                                    val safeNum = input.replace("[^0-9]".toRegex(), "")
+                                    viewModel.dailySafeLimit.value = safeNum
+                                },
                                 leadingIcon = { Text("Rp", color = TextGrayMuted, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 12.dp)) },
                                 modifier = Modifier.fillMaxWidth(),
+                                visualTransformation = IndRupiahVisualTransformation(),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White,
@@ -3064,6 +3124,7 @@ fun LogExpenseDialog(
                                     fontFamily = FontFamily.Monospace,
                                     textAlign = TextAlign.Center
                                 ),
+                                visualTransformation = IndRupiahVisualTransformation(),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = Color.Transparent,
                                     unfocusedBorderColor = Color.Transparent,
