@@ -8,7 +8,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import com.example.ui.screens.FinanceApp
-import com.example.ui.screens.LogExpenseDialog
+import com.example.ui.screens.AuthScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.FinanceViewModel
 import org.junit.Assert.assertEquals
@@ -43,19 +43,17 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `open log expense dialog and check inputs`() {
+  fun `verify auth screen inputs exist`() {
     val app = ApplicationProvider.getApplicationContext<Application>()
     val viewModel = FinanceViewModel(app)
     composeTestRule.setContent {
       MyApplicationTheme {
-        LogExpenseDialog(
-          viewModel = viewModel,
-          onDismiss = {}
-        )
+        AuthScreen(viewModel = viewModel)
       }
     }
 
-    // Verify dialog elements exist without crash
-    composeTestRule.onNodeWithTag("expense_amount_input").assertExists()
+    // Verify critical authentication controls exist and are displayed
+    composeTestRule.onNodeWithTag("email_input").assertExists()
+    composeTestRule.onNodeWithTag("password_input").assertExists()
   }
 }

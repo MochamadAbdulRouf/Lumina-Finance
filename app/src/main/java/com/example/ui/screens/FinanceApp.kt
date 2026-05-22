@@ -46,6 +46,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.data.model.BudgetSettings
 import com.example.data.model.Transaction
 import com.example.data.model.UserProfile
@@ -71,18 +76,24 @@ fun formatDateTime(timestamp: Long, format: String = "dd MMM yyyy, HH:mm"): Stri
 @Composable
 fun FinanceApp(viewModel: FinanceViewModel = viewModel()) {
     val userProfile by viewModel.userProfile.collectAsState()
-    val budgetSettings by viewModel.budgetSettings.collectAsState()
-    val transactions by viewModel.transactions.collectAsState()
-
-    var currentScreen by remember { mutableStateOf("auth") }
-    var currentTab by remember { mutableStateOf("home") }
+    val navController = rememberNavController()
 
     // Navigation logic based on login state
     LaunchedEffect(userProfile.isLoggedIn) {
         if (userProfile.isLoggedIn) {
-            currentScreen = "main"
+            val currentRoute = navController.currentBackStackEntry?.destination?.route
+            if (currentRoute == null || currentRoute == "auth") {
+                navController.navigate("home") {
+                    popUpTo("auth") { inclusive = true }
+                }
+            }
         } else {
-            currentScreen = "auth"
+            val currentRoute = navController.currentBackStackEntry?.destination?.route
+            if (currentRoute != "auth") {
+                navController.navigate("auth") {
+                    popUpTo(0) { inclusive = true }
+                }
+            }
         }
     }
 
@@ -90,36 +101,75 @@ fun FinanceApp(viewModel: FinanceViewModel = viewModel()) {
         color = BrandNavyBlack,
         modifier = Modifier.fillMaxSize()
     ) {
-        when (currentScreen) {
-            "auth" -> {
+        NavHost(
+            navController = navController,
+            startDestination = if (userProfile.isLoggedIn) "home" else "auth"
+        ) {
+            composable("auth") {
                 Box(modifier = Modifier.safeDrawingPadding()) {
                     AuthScreen(viewModel)
                 }
             }
-            "main" -> {
+            composable("home") {
                 MainShell(
                     viewModel = viewModel,
-                    currentTab = currentTab,
-                    onTabChanged = { currentTab = it },
-                    onNavigateToSubscreen = { currentScreen = it }
-                )
+                    navController = navController,
+                    currentTab = "home"
+                ) { onOpenLogExpense ->
+                    HomeScreen(
+                        viewModel = viewModel,
+                        onOpenLogExpense = onOpenLogExpense
+                    )
+                }
             }
-            "edit_account" -> {
+            composable("analytics") {
+                MainShell(
+                    viewModel = viewModel,
+                    navController = navController,
+                    currentTab = "analytics"
+                ) { _ ->
+                    SpendingAnalyticsScreen(viewModel)
+                }
+            }
+            composable("wallet") {
+                MainShell(
+                    viewModel = viewModel,
+                    navController = navController,
+                    currentTab = "wallet"
+                ) { _ ->
+                    MyWalletScreen(viewModel)
+                }
+            }
+            composable("profile") {
+                MainShell(
+                    viewModel = viewModel,
+                    navController = navController,
+                    currentTab = "profile"
+                ) { _ ->
+                    MyProfileScreen(
+                        viewModel = viewModel,
+                        onNavigateToSubscreen = { route ->
+                            navController.navigate(route)
+                        }
+                    )
+                }
+            }
+            composable("edit_account") {
                 EditAccountScreen(
                     viewModel = viewModel,
-                    onBack = { currentScreen = "main"; currentTab = "profile" }
+                    onBack = { navController.popBackStack() }
                 )
             }
-            "level_progress" -> {
+            composable("level_progress") {
                 LevelProgressScreen(
                     viewModel = viewModel,
-                    onBack = { currentScreen = "main"; currentTab = "profile" }
+                    onBack = { navController.popBackStack() }
                 )
             }
-            "security" -> {
+            composable("security") {
                 SecurityScreen(
                     viewModel = viewModel,
-                    onBack = { currentScreen = "main"; currentTab = "profile" }
+                    onBack = { navController.popBackStack() }
                 )
             }
         }
@@ -424,9 +474,9 @@ fun AuthScreen(viewModel: FinanceViewModel) {
 @Composable
 fun MainShell(
     viewModel: FinanceViewModel,
+    navController: NavController,
     currentTab: String,
-    onTabChanged: (String) -> Unit,
-    onNavigateToSubscreen: (String) -> Unit
+    content: @Composable (onOpenLogExpense: () -> Unit) -> Unit
 ) {
     var showLogExpenseDialog by remember { mutableStateOf(false) }
 
@@ -450,25 +500,65 @@ fun MainShell(
                         icon = if (currentTab == "home") Icons.Filled.Home else Icons.Outlined.Home,
                         label = "Home",
                         isActive = currentTab == "home",
-                        onClick = { onTabChanged("home") }
+                        onClick = {
+                            if (currentTab != "home") {
+                                navController.navigate("home") {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        this.saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        }
                     )
                     BottomNavTabItem(
                         icon = if (currentTab == "analytics") Icons.Filled.Insights else Icons.Outlined.Insights,
                         label = "Analytics",
                         isActive = currentTab == "analytics",
-                        onClick = { onTabChanged("analytics") }
+                        onClick = {
+                            if (currentTab != "analytics") {
+                                navController.navigate("analytics") {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        this.saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        }
                     )
                     BottomNavTabItem(
                         icon = if (currentTab == "wallet") Icons.Filled.AccountBalanceWallet else Icons.Outlined.AccountBalanceWallet,
                         label = "Wallet",
                         isActive = currentTab == "wallet",
-                        onClick = { onTabChanged("wallet") }
+                        onClick = {
+                            if (currentTab != "wallet") {
+                                navController.navigate("wallet") {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        this.saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        }
                     )
                     BottomNavTabItem(
                         icon = if (currentTab == "profile") Icons.Filled.Person else Icons.Outlined.Person,
                         label = "Profile",
                         isActive = currentTab == "profile",
-                        onClick = { onTabChanged("profile") }
+                        onClick = {
+                            if (currentTab != "profile") {
+                                navController.navigate("profile") {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        this.saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        }
                     )
                 }
             }
@@ -498,15 +588,7 @@ fun MainShell(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            when (currentTab) {
-                "home" -> HomeScreen(
-                    viewModel = viewModel,
-                    onOpenLogExpense = { showLogExpenseDialog = true }
-                )
-                "analytics" -> SpendingAnalyticsScreen(viewModel)
-                "wallet" -> MyWalletScreen(viewModel)
-                "profile" -> MyProfileScreen(viewModel, onNavigateToSubscreen)
-            }
+            content { showLogExpenseDialog = true }
         }
     }
 
