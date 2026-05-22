@@ -481,7 +481,7 @@ fun MainShell(
                     contentColor = BrandNavyBlack,
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
-                        .padding(bottom = 48.dp, end = 20.dp)
+                        .padding(bottom = 28.dp, end = 12.dp)
                         .testTag("floating_add_button")
                 ) {
                     Icon(
@@ -2907,8 +2907,7 @@ fun LogExpenseDialog(
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
+            usePlatformDefaultWidth = false
         )
     ) {
         Box(
@@ -2930,7 +2929,8 @@ fun LogExpenseDialog(
                 Column(
                     modifier = Modifier
                         .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 20.dp),
+                        .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 44.dp)
+                        .verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     // Notch indicator
