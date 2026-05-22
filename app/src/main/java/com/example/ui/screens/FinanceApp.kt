@@ -86,32 +86,38 @@ fun FinanceApp(viewModel: FinanceViewModel = viewModel()) {
         }
     }
 
-    Scaffold(
-        containerColor = BrandNavyBlack,
+    Surface(
+        color = BrandNavyBlack,
         modifier = Modifier.fillMaxSize()
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            when (currentScreen) {
-                "auth" -> AuthScreen(viewModel)
-                "main" -> MainShell(
+    ) {
+        when (currentScreen) {
+            "auth" -> {
+                Box(modifier = Modifier.safeDrawingPadding()) {
+                    AuthScreen(viewModel)
+                }
+            }
+            "main" -> {
+                MainShell(
                     viewModel = viewModel,
                     currentTab = currentTab,
                     onTabChanged = { currentTab = it },
                     onNavigateToSubscreen = { currentScreen = it }
                 )
-                "edit_account" -> EditAccountScreen(
+            }
+            "edit_account" -> {
+                EditAccountScreen(
                     viewModel = viewModel,
                     onBack = { currentScreen = "main"; currentTab = "profile" }
                 )
-                "level_progress" -> LevelProgressScreen(
+            }
+            "level_progress" -> {
+                LevelProgressScreen(
                     viewModel = viewModel,
                     onBack = { currentScreen = "main"; currentTab = "profile" }
                 )
-                "security" -> SecurityScreen(
+            }
+            "security" -> {
+                SecurityScreen(
                     viewModel = viewModel,
                     onBack = { currentScreen = "main"; currentTab = "profile" }
                 )
@@ -424,22 +430,9 @@ fun MainShell(
 ) {
     var showLogExpenseDialog by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Tab display
-        Column(modifier = Modifier.fillMaxSize()) {
-            Box(modifier = Modifier.weight(1f)) {
-                when (currentTab) {
-                    "home" -> HomeScreen(
-                        viewModel = viewModel,
-                        onOpenLogExpense = { showLogExpenseDialog = true }
-                    )
-                    "analytics" -> SpendingAnalyticsScreen(viewModel)
-                    "wallet" -> MyWalletScreen(viewModel)
-                    "profile" -> MyProfileScreen(viewModel, onNavigateToSubscreen)
-                }
-            }
-
-            // Bottom Navigation Layout
+    Scaffold(
+        containerColor = BrandNavyBlack,
+        bottomBar = {
             Surface(
                 color = BrandSurfaceNavy,
                 border = BorderStroke(1.dp, BrandBorderSlate.copy(alpha = 0.8f)),
@@ -448,6 +441,7 @@ fun MainShell(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .navigationBarsPadding()
                         .padding(vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically
@@ -478,41 +472,49 @@ fun MainShell(
                     )
                 }
             }
-        }
-
-        // Floating Action Button for Home
-        if (currentTab == "home") {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 80.dp, end = 16.dp),
-                contentAlignment = Alignment.BottomEnd
-            ) {
+        },
+        floatingActionButton = {
+            if (currentTab == "home") {
                 FloatingActionButton(
                     onClick = { showLogExpenseDialog = true },
                     containerColor = BrandLime,
-                    contentColor = Color(0xFF381E72),
+                    contentColor = BrandNavyBlack,
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
-                        .size(56.dp)
                         .testTag("floating_add_button")
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Add,
                         contentDescription = "Log Expense",
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
         }
-
-        // Animated Log Expense dialog
-        if (showLogExpenseDialog) {
-            LogExpenseDialog(
-                viewModel = viewModel,
-                onDismiss = { showLogExpenseDialog = false }
-            )
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            when (currentTab) {
+                "home" -> HomeScreen(
+                    viewModel = viewModel,
+                    onOpenLogExpense = { showLogExpenseDialog = true }
+                )
+                "analytics" -> SpendingAnalyticsScreen(viewModel)
+                "wallet" -> MyWalletScreen(viewModel)
+                "profile" -> MyProfileScreen(viewModel, onNavigateToSubscreen)
+            }
         }
+    }
+
+    // Animated Log Expense dialog
+    if (showLogExpenseDialog) {
+        LogExpenseDialog(
+            viewModel = viewModel,
+            onDismiss = { showLogExpenseDialog = false }
+        )
     }
 }
 
