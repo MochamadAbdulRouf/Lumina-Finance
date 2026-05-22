@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Main Ledger Card Base -->
+    <path
+        android:fillColor="#D9F99D"
+        android:pathData="M 24,34 C 24,30.686 26.686,28 30,28 L 78,28 C 81.314,28 84,30.686 84,34 L 84,74 C 84,77.314 81.314,80 78,80 L 30,80 C 26.686,80 24,77.314 24,74 Z" />
+    <!-- Horizontal balance slot line representing ledger entries -->
+    <path
+        android:fillColor="#161B26"
+        android:pathData="M 24,46 L 84,46 L 84,51 L 24,51 Z" />
+    <!-- Circle highlight representing a financial safe lock -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M 64,56 A 10,10 0 1 1 44,56 A 10,10 0 1 1 64,56 Z" />
+    <!-- Lumina sparkle icon representing diamond ledger safety -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,49 C 54,52 52,54 49,54 C 52,54 54,56 54,59 C 54,56 56,54 59,54 C 56,54 54,52 54,49 Z" />
+</vector>

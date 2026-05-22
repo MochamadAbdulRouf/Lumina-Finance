@@ -1,0 +1,6 @@
+{
+  "name": "Lumina Finance",
+  "description": "An ultra-minimalist personal finance ledger with persistent storage, spending analytics, custom budgets, levels, and security configurations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
