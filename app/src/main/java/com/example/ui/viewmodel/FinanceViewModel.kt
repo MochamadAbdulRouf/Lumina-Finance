@@ -21,7 +21,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         
         // Populate static data
         viewModelScope.launch {
-            repository.initializeDatabaseIfEmpty()
+            try {
+                repository.initializeDatabaseIfEmpty()
+            } catch (e: Exception) {
+                android.util.Log.e("CRASH_DUMP", "Failed to initialize database: ${e.message}", e)
+            }
         }
     }
 
@@ -100,18 +104,23 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
 
         viewModelScope.launch {
-            // Update profile record
-            val current = repository.userProfile.firstOrNull() ?: UserProfile()
-            val finalProfile = current.copy(
-                email = emailValue,
-                isLoggedIn = true,
-                name = if (current.name == "Mochamad Adit" || current.name.isEmpty()) {
-                    emailValue.substringBefore("@").replaceFirstChar { it.uppercase() }
-                } else current.name
-            )
-            repository.updateProfile(finalProfile.name, finalProfile.email, finalProfile.phone)
-            repository.setLoginState(true)
-            onSuccess()
+            try {
+                // Update profile record
+                val current = repository.userProfile.firstOrNull() ?: UserProfile()
+                val finalProfile = current.copy(
+                    email = emailValue,
+                    isLoggedIn = true,
+                    name = if (current.name == "Mochamad Adit" || current.name.isEmpty()) {
+                        emailValue.substringBefore("@").replaceFirstChar { it.uppercase() }
+                    } else current.name
+                )
+                repository.updateProfile(finalProfile.name, finalProfile.email, finalProfile.phone)
+                repository.setLoginState(true)
+                onSuccess()
+            } catch (e: Exception) {
+                android.util.Log.e("CRASH_DUMP", "Failed to login user: ${e.message}", e)
+                onError(e.localizedMessage ?: "An error occurred during log in.")
+            }
         }
     }
 
@@ -128,36 +137,49 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
 
         viewModelScope.launch {
-            // Register and auto logs-in
-            val current = repository.userProfile.firstOrNull() ?: UserProfile()
-            val finalProfile = current.copy(
-                email = emailValue,
-                isLoggedIn = true,
-                name = emailValue.substringBefore("@").replaceFirstChar { it.uppercase() }
-            )
-            repository.updateProfile(finalProfile.name, finalProfile.email, finalProfile.phone)
-            repository.setLoginState(true)
-            onSuccess()
+            try {
+                // Register and auto logs-in
+                val current = repository.userProfile.firstOrNull() ?: UserProfile()
+                val finalProfile = current.copy(
+                    email = emailValue,
+                    isLoggedIn = true,
+                    name = emailValue.substringBefore("@").replaceFirstChar { it.uppercase() }
+                )
+                repository.updateProfile(finalProfile.name, finalProfile.email, finalProfile.phone)
+                repository.setLoginState(true)
+                onSuccess()
+            } catch (e: Exception) {
+                android.util.Log.e("CRASH_DUMP", "Failed to register user: ${e.message}", e)
+                onError(e.localizedMessage ?: "An error occurred during registration.")
+            }
         }
     }
 
     fun logoutUser() {
         viewModelScope.launch {
-            repository.setLoginState(false)
-            // Reset input stats
-            authEmail.value = ""
-            authPassword.value = ""
+            try {
+                repository.setLoginState(false)
+                // Reset input stats
+                authEmail.value = ""
+                authPassword.value = ""
+            } catch (e: Exception) {
+                android.util.Log.e("CRASH_DUMP", "Failed to logout: ${e.message}", e)
+            }
         }
     }
 
     fun saveProfileChanges(onSuccess: () -> Unit) {
         viewModelScope.launch {
-            repository.updateProfile(
-                name = profileName.value.trim(),
-                email = profileEmail.value.trim(),
-                phone = profilePhone.value.trim()
-            )
-            onSuccess()
+            try {
+                repository.updateProfile(
+                    name = profileName.value.trim(),
+                    email = profileEmail.value.trim(),
+                    phone = profilePhone.value.trim()
+                )
+                onSuccess()
+            } catch (e: Exception) {
+                android.util.Log.e("CRASH_DUMP", "Failed to save profile changes: ${e.message}", e)
+            }
         }
     }
 
@@ -173,24 +195,33 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val notesStr = expenseNotes.value.trim().ifEmpty { selectedCategory.value }
 
         viewModelScope.launch {
-            repository.addTransaction(
-                merchant = if (notesStr.isNotEmpty()) notesStr else "Expense Item",
-                category = selectedCategory.value,
-                amount = amt,
-                notes = selectedCategory.value,
-                dateTime = expenseDateTime.value
-            )
-            // Reset inputs
-            expenseAmount.value = "0"
-            expenseNotes.value = ""
-            expenseDateTime.value = System.currentTimeMillis()
-            onSuccess()
+            try {
+                repository.addTransaction(
+                    merchant = if (notesStr.isNotEmpty()) notesStr else "Expense Item",
+                    category = selectedCategory.value,
+                    amount = amt,
+                    notes = selectedCategory.value,
+                    dateTime = expenseDateTime.value
+                )
+                // Reset inputs
+                expenseAmount.value = "0"
+                expenseNotes.value = ""
+                expenseDateTime.value = System.currentTimeMillis()
+                onSuccess()
+            } catch (e: Exception) {
+                android.util.Log.e("CRASH_DUMP", "Failed to save expense: ${e.message}", e)
+                onError(e.localizedMessage ?: "Failed to save expense.")
+            }
         }
     }
 
     fun deleteTransaction(tx: Transaction) {
         viewModelScope.launch {
-            repository.deleteTransaction(tx)
+            try {
+                repository.deleteTransaction(tx)
+            } catch (e: Exception) {
+                android.util.Log.e("CRASH_DUMP", "Failed to delete transaction: ${e.message}", e)
+            }
         }
     }
 
@@ -201,13 +232,17 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val isAutoCalcValue = isAutoCalcOn.value
 
         viewModelScope.launch {
-            repository.saveBudgetSettings(
-                balance = balanceVal,
-                monthlyBudget = mBudgetVal,
-                dailyLimit = dLimitVal,
-                autoCalculate = isAutoCalcValue
-            )
-            onSuccess()
+            try {
+                repository.saveBudgetSettings(
+                    balance = balanceVal,
+                    monthlyBudget = mBudgetVal,
+                    dailyLimit = dLimitVal,
+                    autoCalculate = isAutoCalcValue
+                )
+                onSuccess()
+            } catch (e: Exception) {
+                android.util.Log.e("CRASH_DUMP", "Failed to save wallet settings: ${e.message}", e)
+            }
         }
     }
 
@@ -215,7 +250,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         isBiometricEnabled.value = biometric
         isPinLockEnabled.value = pinLock
         viewModelScope.launch {
-            repository.updateSecuritySettings(biometric, pinLock)
+            try {
+                repository.updateSecuritySettings(biometric, pinLock)
+            } catch (e: Exception) {
+                android.util.Log.e("CRASH_DUMP", "Failed to update security switches: ${e.message}", e)
+            }
         }
     }
 }

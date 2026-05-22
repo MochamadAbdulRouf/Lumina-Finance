@@ -19,7 +19,20 @@ import com.example.ui.viewmodel.FinanceViewModel
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    enableEdgeToEdge()
+    
+    // Global Uncaught Exception Handler to capture and print any startup or runtime failures
+    val sysHandler = Thread.getDefaultUncaughtExceptionHandler()
+    Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+      android.util.Log.e("CRASH_DUMP", "CRITICAL UNCAUGHT EXCEPTION on thread ${thread.name}: ${throwable.message}", throwable)
+      throwable.printStackTrace()
+      sysHandler?.uncaughtException(thread, throwable)
+    }
+
+    try {
+      enableEdgeToEdge()
+    } catch (e: Exception) {
+      android.util.Log.e("CRASH_DUMP", "enableEdgeToEdge failed gracefully: ${e.message}", e)
+    }
     setContent {
       MyApplicationTheme {
         FinanceApp()
