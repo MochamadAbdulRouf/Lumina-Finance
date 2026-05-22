@@ -1732,7 +1732,7 @@ fun MyProfileScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.PhotoCamera,
+                                    imageVector = Icons.Filled.CameraAlt,
                                     contentDescription = "Change photo",
                                     tint = BrandNavyBlack,
                                     modifier = Modifier.size(16.dp)
@@ -1836,13 +1836,13 @@ fun MyProfileScreen(
                         )
                         HorizontalDivider(color = Color(0xFF1F2937).copy(alpha = 0.5f))
                         ProfileMenuEntry(
-                            icon = Icons.Outlined.QueryStats,
+                            icon = Icons.Outlined.Insights,
                             label = "Financial Level Progress",
                             onClick = { onNavigateToSubscreen("level_progress") }
                         )
                         HorizontalDivider(color = Color(0xFF1F2937).copy(alpha = 0.5f))
                         ProfileMenuEntry(
-                            icon = Icons.Outlined.Security,
+                            icon = Icons.Outlined.Lock,
                             label = "Security & Password",
                             onClick = { onNavigateToSubscreen("security") }
                         )
@@ -2034,7 +2034,7 @@ fun EditAccountScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.PhotoCamera,
+                        imageVector = Icons.Filled.CameraAlt,
                         contentDescription = "Change photo",
                         tint = BrandNavyBlack,
                         modifier = Modifier.size(16.dp)
