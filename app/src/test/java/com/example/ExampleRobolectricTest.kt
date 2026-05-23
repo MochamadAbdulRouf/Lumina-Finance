@@ -56,4 +56,17 @@ class ExampleRobolectricTest {
     composeTestRule.onNodeWithTag("email_input").assertExists()
     composeTestRule.onNodeWithTag("password_input").assertExists()
   }
+
+  @Test
+  fun `verify spending analytics screen loads without crashing`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val viewModel = FinanceViewModel(app)
+    composeTestRule.setContent {
+      MyApplicationTheme {
+        com.example.ui.screens.SpendingAnalyticsScreen(viewModel = viewModel)
+      }
+    }
+    // Simple assert to make sure rendering proceeded and finished without throwing Exception
+    assertNotNull(viewModel)
+  }
 }

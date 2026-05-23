@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -1101,13 +1102,14 @@ fun HomeScreen(
 
 @Composable
 fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
-    val transactions by viewModel.transactions.collectAsState()
-    val budgetSettings by viewModel.budgetSettings.collectAsState()
-    val categorySummaries by viewModel.categorySummaries.collectAsState()
-    val totalExpenseReactive by viewModel.totalExpense.collectAsState()
-    val weeklyData by viewModel.weeklyAnalyticsData.collectAsState()
-    val selectedDay by viewModel.selectedDay.collectAsState()
-    val selectedTransactions by viewModel.selectedDayTransactions.collectAsState()
+    val transactions by viewModel.transactions.collectAsStateWithLifecycle()
+    val budgetSettings by viewModel.budgetSettings.collectAsStateWithLifecycle()
+    val categorySummaries by viewModel.categorySummaries.collectAsStateWithLifecycle()
+    val totalExpenseReactive by viewModel.totalExpense.collectAsStateWithLifecycle()
+    val weeklyData by viewModel.weeklyAnalyticsData.collectAsStateWithLifecycle()
+    val selectedDay by viewModel.selectedDay.collectAsStateWithLifecycle()
+    val selectedTransactions by viewModel.selectedDayTransactions.collectAsStateWithLifecycle()
+    val selectedTimeFilter by viewModel.selectedTimeFilter.collectAsStateWithLifecycle()
 
     // Aggregate totals
     val totalExpense = transactions.sumOf { it.amount }
@@ -1145,27 +1147,61 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                 fontWeight = FontWeight.Bold
             )
 
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(100.dp))
-                    .background(Color(0xFF16202E))
-                    .border(1.dp, Color(0xFF1F2937), RoundedCornerShape(100.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.CalendarToday,
-                        contentDescription = "Cal",
-                        tint = BrandLime,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "This Month",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+            var filterDropdownExpanded by remember { mutableStateOf(false) }
+
+            Box {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(Color(0xFF16202E))
+                        .border(1.dp, Color(0xFF1F2937), RoundedCornerShape(100.dp))
+                        .clickable { filterDropdownExpanded = true }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.CalendarToday,
+                            contentDescription = "Cal",
+                            tint = BrandLime,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = selectedTimeFilter,
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Filled.ArrowDropDown,
+                            contentDescription = "Dropdown indicator",
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+
+                DropdownMenu(
+                    expanded = filterDropdownExpanded,
+                    onDismissRequest = { filterDropdownExpanded = false },
+                    modifier = Modifier.background(Color(0xFF161B26))
+                ) {
+                    val filters = listOf("Today", "This Month", "This Year")
+                    filters.forEach { filterOption ->
+                        DropdownMenuItem(
+                            text = { 
+                                Text(
+                                    text = filterOption, 
+                                    color = if (selectedTimeFilter == filterOption) BrandLime else Color.White
+                                ) 
+                            },
+                            onClick = {
+                                viewModel.selectedTimeFilter.value = filterOption
+                                filterDropdownExpanded = false
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -1185,8 +1221,14 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
+                        val periodLabel = when (selectedTimeFilter) {
+                            "Today" -> "Today"
+                            "This Month" -> "This Month"
+                            "This Year" -> "This Year"
+                            else -> "This Month"
+                        }
                         Text(
-                            text = "Total Spending (7 Days)",
+                            text = "Total Spending ($periodLabel)",
                             color = TextGrayMuted,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -1214,9 +1256,9 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                                 val height = size.height
 
                                 // Draw vertical grid lines asynchronously
-                                val cols = 7
+                                val cols = weeklyData.size
                                 for (i in 0 until cols) {
-                                    val x = (width / (cols - 1)) * i
+                                    val x = if (cols > 1) (width / (cols - 1)) * i else 0f
                                     drawLine(
                                         color = Color(0xFF1F2937).copy(alpha = 0.4f),
                                         start = Offset(x, 0f),
@@ -1227,7 +1269,7 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
 
                                 if (weeklyData.isNotEmpty()) {
                                     val points = weeklyData.mapIndexed { idx, day ->
-                                        val x = (width / 6f) * idx
+                                        val x = if (weeklyData.size > 1) (width / (weeklyData.size - 1).toFloat()) * idx else 0f
                                         val y = height - (height * 0.75f * day.yPercent) - (height * 0.12f)
                                         Offset(x, y)
                                     }
@@ -1292,9 +1334,9 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(top = 2.dp),
-                                    contentAlignment = when (selectedIndex) {
-                                        0 -> Alignment.TopStart
-                                        6 -> Alignment.TopEnd
+                                    contentAlignment = when {
+                                        selectedIndex == 0 -> Alignment.TopStart
+                                        selectedIndex == weeklyData.size - 1 -> Alignment.TopEnd
                                         else -> Alignment.TopCenter
                                     }
                                 ) {
@@ -1317,39 +1359,44 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Day Labels row
+                        // Labels row fully scrollable and responsive
+                        val labelsScrollState = rememberScrollState()
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(labelsScrollState),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             weeklyData.forEach { dayData ->
                                 val isSelected = dayData.dateLabel == selectedDay
                                 Box(
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(4.dp))
+                                        .width(56.dp)
+                                        .clip(RoundedCornerShape(8.dp))
                                         .background(if (isSelected) Color(0xFF1F2937) else Color.Transparent)
                                         .clickable {
                                             viewModel.selectedDay.value = dayData.dateLabel
                                         }
-                                        .padding(vertical = 4.dp),
+                                        .padding(vertical = 6.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Text(
                                             text = dayData.initialLabel,
-                                            color = if (isSelected) BrandLime else TextGrayMuted,
+                                            color = if (isSelected) BrandLime else Color.White,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                             fontSize = 11.sp,
-                                            textAlign = TextAlign.Center
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1
                                         )
-                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Spacer(modifier = Modifier.height(3.dp))
                                         Text(
-                                            text = dayData.dateLabel.take(3),
-                                            color = if (isSelected) BrandLime else TextGrayMuted.copy(alpha = 0.6f),
+                                            text = if (dayData.dateLabel.length > 5 && selectedTimeFilter != "Today") dayData.dateLabel.take(6) else dayData.dateLabel,
+                                            color = if (isSelected) BrandLime else TextGrayMuted.copy(alpha = 0.8f),
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                             fontSize = 9.sp,
-                                            textAlign = TextAlign.Center
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1
                                         )
                                     }
                                 }
@@ -1373,7 +1420,7 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "${selectedTransactions.size} Transaksi",
+                        text = "${selectedTransactions.size} Transactions",
                         color = TextGrayMuted,
                         fontSize = 12.sp
                     )
@@ -1396,7 +1443,7 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Tidak ada transaksi di hari $selectedDay",
+                                text = "No transactions on $selectedDay",
                                 color = TextGrayMuted,
                                 fontSize = 13.sp,
                                 textAlign = TextAlign.Center

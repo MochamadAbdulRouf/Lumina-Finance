@@ -93,108 +93,165 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         result
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    private fun getTodayIndoName(): String {
-        val cal = java.util.Calendar.getInstance()
-        return when (cal.get(java.util.Calendar.DAY_OF_WEEK)) {
-            java.util.Calendar.SUNDAY -> "Minggu"
-            java.util.Calendar.MONDAY -> "Senin"
-            java.util.Calendar.TUESDAY -> "Selasa"
-            java.util.Calendar.WEDNESDAY -> "Rabu"
-            java.util.Calendar.THURSDAY -> "Kamis"
-            java.util.Calendar.FRIDAY -> "Jumat"
-            java.util.Calendar.SATURDAY -> "Sabtu"
-            else -> "Senin"
+    val selectedTimeFilter = MutableStateFlow("This Month")
+
+    val selectedDay = MutableStateFlow("")
+
+    val weeklyAnalyticsData: StateFlow<List<AnalyticsDay>> = combine(transactions, selectedTimeFilter) { txList, filter ->
+        val result = when (filter) {
+            "Today" -> {
+                val calendar = java.util.Calendar.getInstance()
+                calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                calendar.set(java.util.Calendar.MINUTE, 0)
+                calendar.set(java.util.Calendar.SECOND, 0)
+                calendar.set(java.util.Calendar.MILLISECOND, 0)
+                val startOfToday = calendar.timeInMillis
+                (0..23).map { hour ->
+                    val startOfHour = startOfToday + hour * 3600000L
+                    val endOfHour = startOfHour + 3600000L - 1
+                    val hourTransactions = txList.filter { it.dateTime in startOfHour..endOfHour }
+                    val hourSpend = hourTransactions.sumOf { it.amount }
+                    val label = String.format(java.util.Locale.ENGLISH, "%02d:00", hour)
+                    AnalyticsDay(
+                        dateLabel = label,
+                        initialLabel = label,
+                        totalSpend = hourSpend,
+                        dateInMillis = startOfHour,
+                        xPercent = hour / 23.0f,
+                        yPercent = 0.0f
+                    )
+                }
+            }
+            "This Year" -> {
+                val calendar = java.util.Calendar.getInstance()
+                calendar.set(java.util.Calendar.MONTH, java.util.Calendar.JANUARY)
+                calendar.set(java.util.Calendar.DAY_OF_MONTH, 1)
+                calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                calendar.set(java.util.Calendar.MINUTE, 0)
+                calendar.set(java.util.Calendar.SECOND, 0)
+                calendar.set(java.util.Calendar.MILLISECOND, 0)
+                val startOfYear = calendar.timeInMillis
+                (0..11).map { month ->
+                    val cal = java.util.Calendar.getInstance()
+                    cal.timeInMillis = startOfYear
+                    cal.set(java.util.Calendar.MONTH, month)
+                    val startOfMonth = cal.timeInMillis
+
+                    val maxDaysInMonth = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+                    cal.set(java.util.Calendar.DAY_OF_MONTH, maxDaysInMonth)
+                    cal.set(java.util.Calendar.HOUR_OF_DAY, 23)
+                    cal.set(java.util.Calendar.MINUTE, 59)
+                    cal.set(java.util.Calendar.SECOND, 59)
+                    cal.set(java.util.Calendar.MILLISECOND, 999)
+                    val endOfMonth = cal.timeInMillis
+
+                    val monthTransactions = txList.filter { it.dateTime in startOfMonth..endOfMonth }
+                    val monthSpend = monthTransactions.sumOf { it.amount }
+
+                    val sdfMonthName = java.text.SimpleDateFormat("MMMM", java.util.Locale.ENGLISH)
+                    val monthName = sdfMonthName.format(java.util.Date(startOfMonth))
+                    val initialLabel = monthName.take(3)
+
+                    AnalyticsDay(
+                        dateLabel = monthName,
+                        initialLabel = initialLabel,
+                        totalSpend = monthSpend,
+                        dateInMillis = startOfMonth,
+                        xPercent = month / 11.0f,
+                        yPercent = 0.0f
+                    )
+                }
+            }
+            else -> { // "This Month"
+                val calendar = java.util.Calendar.getInstance()
+                val maxDays = calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+                calendar.set(java.util.Calendar.DAY_OF_MONTH, 1)
+                calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                calendar.set(java.util.Calendar.MINUTE, 0)
+                calendar.set(java.util.Calendar.SECOND, 0)
+                calendar.set(java.util.Calendar.MILLISECOND, 0)
+                val startOfFirstDay = calendar.timeInMillis
+                
+                (1..maxDays).map { day ->
+                    val cal = java.util.Calendar.getInstance()
+                    cal.timeInMillis = startOfFirstDay
+                    cal.set(java.util.Calendar.DAY_OF_MONTH, day)
+                    val startOfDay = cal.timeInMillis
+                    val endOfDay = startOfDay + (24 * 60 * 60 * 1000L) - 1
+
+                    val dayTransactions = txList.filter { it.dateTime in startOfDay..endOfDay }
+                    val daySpend = dayTransactions.sumOf { it.amount }
+
+                    val sdfDay = java.text.SimpleDateFormat("EEEE", java.util.Locale.ENGLISH)
+                    val dayName = sdfDay.format(java.util.Date(startOfDay))
+
+                    val label = String.format(java.util.Locale.ENGLISH, "%02d %s", day, dayName.take(3))
+                    val dayOfMonthStr = day.toString()
+
+                    AnalyticsDay(
+                        dateLabel = label,
+                        initialLabel = dayOfMonthStr,
+                        totalSpend = daySpend,
+                        dateInMillis = startOfDay,
+                        xPercent = if (maxDays > 1) (day - 1) / (maxDays - 1).toFloat() else 0f,
+                        yPercent = 0.0f
+                    )
+                }
+            }
+        }
+
+        val maxSpend = result.maxOfOrNull { it.totalSpend } ?: 0.0
+        val scaledResult = result.map { day ->
+            val yPercent = if (maxSpend > 0.0) {
+                (day.totalSpend / maxSpend).toFloat()
+            } else {
+                0.0f
+            }
+            day.copy(yPercent = yPercent)
+        }
+
+        val currentSelected = selectedDay.value
+        val exists = scaledResult.any { it.dateLabel == currentSelected }
+        if (!exists && scaledResult.isNotEmpty()) {
+            val now = System.currentTimeMillis()
+            val closest = scaledResult.minByOrNull { Math.abs(it.dateInMillis - now) }
+            val defaultLabel = closest?.dateLabel ?: scaledResult.last().dateLabel
+            selectedDay.value = defaultLabel
+        }
+
+        scaledResult
+    }
+    .flowOn(kotlinx.coroutines.Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val selectedDayTransactions: StateFlow<List<Transaction>> = combine(
+        transactions,
+        selectedDay,
+        weeklyAnalyticsData
+    ) { txList, selLabel, points ->
+        val point = points.find { it.dateLabel == selLabel }
+        if (point == null) {
+            emptyList()
+        } else {
+            val start = point.dateInMillis
+            val filter = selectedTimeFilter.value
+            val duration = when (filter) {
+                "Today" -> 3600000L // 1 hour
+                "This Month" -> 86400000L // 1 day
+                "This Year" -> {
+                    val cal = java.util.Calendar.getInstance()
+                    cal.timeInMillis = start
+                    val days = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+                    days * 86400000L // 1 month
+                }
+                else -> 86400000L
+            }
+            val end = start + duration - 1
+            txList.filter { it.dateTime in start..end }
         }
     }
-
-    val selectedDay = MutableStateFlow(getTodayIndoName())
-
-    val weeklyAnalyticsData: StateFlow<List<AnalyticsDay>> = transactions
-        .map { txList ->
-            val calendar = java.util.Calendar.getInstance()
-            calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
-            calendar.set(java.util.Calendar.MINUTE, 0)
-            calendar.set(java.util.Calendar.SECOND, 0)
-            calendar.set(java.util.Calendar.MILLISECOND, 0)
-
-            val daysRangeList = (6 downTo 0).map { offset ->
-                val cal = java.util.Calendar.getInstance()
-                cal.timeInMillis = calendar.timeInMillis
-                cal.add(java.util.Calendar.DAY_OF_YEAR, -offset)
-                cal
-            }
-
-            val analyticsDays = daysRangeList.mapIndexed { index, cal ->
-                val startOfDay = cal.timeInMillis
-                val endOfDay = cal.timeInMillis + (24 * 60 * 60 * 1000) - 1
-
-                val dayTransactions = txList.filter { it.dateTime in startOfDay..endOfDay }
-                val daySpend = dayTransactions.sumOf { it.amount }
-
-                val dayName = when (cal.get(java.util.Calendar.DAY_OF_WEEK)) {
-                    java.util.Calendar.SUNDAY -> "Minggu"
-                    java.util.Calendar.MONDAY -> "Senin"
-                    java.util.Calendar.TUESDAY -> "Selasa"
-                    java.util.Calendar.WEDNESDAY -> "Rabu"
-                    java.util.Calendar.THURSDAY -> "Kamis"
-                    java.util.Calendar.FRIDAY -> "Jumat"
-                    java.util.Calendar.SATURDAY -> "Sabtu"
-                    else -> ""
-                }
-
-                val initial = when (cal.get(java.util.Calendar.DAY_OF_WEEK)) {
-                    java.util.Calendar.SUNDAY -> "M"
-                    java.util.Calendar.MONDAY -> "S"
-                    java.util.Calendar.TUESDAY -> "S"
-                    java.util.Calendar.WEDNESDAY -> "R"
-                    java.util.Calendar.THURSDAY -> "K"
-                    java.util.Calendar.FRIDAY -> "J"
-                    java.util.Calendar.SATURDAY -> "S"
-                    else -> ""
-                }
-
-                val xPercent = index / 6.0f
-
-                AnalyticsDay(
-                    dateLabel = dayName,
-                    initialLabel = initial,
-                    totalSpend = daySpend,
-                    dateInMillis = startOfDay,
-                    xPercent = xPercent,
-                    yPercent = 0.0f
-                )
-            }
-
-            val maxSpend = analyticsDays.maxOfOrNull { it.totalSpend } ?: 0.0
-
-            analyticsDays.map { day ->
-                val yPercent = if (maxSpend > 0.0) {
-                    (day.totalSpend / maxSpend).toFloat()
-                } else {
-                    0.0f
-                }
-                day.copy(yPercent = yPercent)
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val selectedDayTransactions: StateFlow<List<Transaction>> = combine(transactions, selectedDay) { txList, selDay ->
-        txList.filter { tx ->
-            val cal = java.util.Calendar.getInstance()
-            cal.timeInMillis = tx.dateTime
-            val dayName = when (cal.get(java.util.Calendar.DAY_OF_WEEK)) {
-                java.util.Calendar.SUNDAY -> "Minggu"
-                java.util.Calendar.MONDAY -> "Senin"
-                java.util.Calendar.TUESDAY -> "Selasa"
-                java.util.Calendar.WEDNESDAY -> "Rabu"
-                java.util.Calendar.THURSDAY -> "Kamis"
-                java.util.Calendar.FRIDAY -> "Jumat"
-                java.util.Calendar.SATURDAY -> "Sabtu"
-                else -> ""
-            }
-            dayName == selDay
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    .flowOn(kotlinx.coroutines.Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // UI Input States for Forms
     // Log Expense Modal Form
