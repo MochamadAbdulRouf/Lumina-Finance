@@ -165,7 +165,10 @@ fun FinanceApp(viewModel: FinanceViewModel = viewModel()) {
                 ) { onOpenLogExpense ->
                     HomeScreen(
                         viewModel = viewModel,
-                        onOpenLogExpense = onOpenLogExpense
+                        onOpenLogExpense = onOpenLogExpense,
+                        onNavigateToProfile = {
+                            navController.navigate("edit_account")
+                        }
                     )
                 }
             }
@@ -693,7 +696,8 @@ fun RowScope.BottomNavTabItem(
 @Composable
 fun HomeScreen(
     viewModel: FinanceViewModel,
-    onOpenLogExpense: () -> Unit
+    onOpenLogExpense: () -> Unit,
+    onNavigateToProfile: () -> Unit
 ) {
     val userProfile by viewModel.userProfile.collectAsState()
     val budgetSettings by viewModel.budgetSettings.collectAsState()
@@ -719,15 +723,24 @@ fun HomeScreen(
                         .size(40.dp)
                         .clip(CircleShape)
                         .background(BrandLime)
-                        .clickable { onOpenLogExpense() },
+                        .clickable { onNavigateToProfile() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = userProfile.name.take(2).uppercase(),
-                        color = BrandNavyBlack,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
+                    if (userProfile.avatarUrl.isNotEmpty()) {
+                        AsyncImage(
+                            model = userProfile.avatarUrl,
+                            contentDescription = "Profile Pic",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Text(
+                            text = userProfile.name.take(2).uppercase(),
+                            color = BrandNavyBlack,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
@@ -1092,6 +1105,9 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
     val budgetSettings by viewModel.budgetSettings.collectAsState()
     val categorySummaries by viewModel.categorySummaries.collectAsState()
     val totalExpenseReactive by viewModel.totalExpense.collectAsState()
+    val weeklyData by viewModel.weeklyAnalyticsData.collectAsState()
+    val selectedDay by viewModel.selectedDay.collectAsState()
+    val selectedTransactions by viewModel.selectedDayTransactions.collectAsState()
 
     // Aggregate totals
     val totalExpense = transactions.sumOf { it.amount }
@@ -1170,7 +1186,7 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "Total Spending",
+                            text = "Total Spending (7 Days)",
                             color = TextGrayMuted,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -1209,90 +1225,251 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                                     )
                                 }
 
-                                // Create line coordinates
-                                val path = Path().apply {
-                                    moveTo(0f, height * 0.9f)
-                                    quadraticTo(width * 0.2f, height * 0.82f, width * 0.35f, height * 0.86f)
-                                    quadraticTo(width * 0.55f, height * 0.68f, width * 0.65f, height * 0.6f)
-                                    quadraticTo(width * 0.76f, height * 0.4f, width * 0.83f, height * 0.25f)
-                                    quadraticTo(width * 0.92f, height * 0.55f, width, height * 0.48f)
-                                }
+                                if (weeklyData.isNotEmpty()) {
+                                    val points = weeklyData.mapIndexed { idx, day ->
+                                        val x = (width / 6f) * idx
+                                        val y = height - (height * 0.75f * day.yPercent) - (height * 0.12f)
+                                        Offset(x, y)
+                                    }
 
-                                val fillPath = Path().apply {
-                                    addPath(path)
-                                    lineTo(width, height)
-                                    lineTo(0f, height)
-                                    close()
-                                }
+                                    val path = Path().apply {
+                                        moveTo(points[0].x, points[0].y)
+                                        for (i in 1 until points.size) {
+                                            lineTo(points[i].x, points[i].y)
+                                        }
+                                    }
 
-                                // Fill Area with sleek gradient
-                                drawPath(
-                                    path = fillPath,
-                                    brush = Brush.verticalGradient(
-                                        colors = listOf(BrandLime.copy(alpha = 0.35f), Color.Transparent),
-                                        startY = 0f,
-                                        endY = height
+                                    val fillPath = Path().apply {
+                                        addPath(path)
+                                        lineTo(width, height)
+                                        lineTo(0f, height)
+                                        close()
+                                    }
+
+                                    // Fill Area with sleek gradient
+                                    drawPath(
+                                        path = fillPath,
+                                        brush = Brush.verticalGradient(
+                                            colors = listOf(BrandLime.copy(alpha = 0.35f), Color.Transparent),
+                                            startY = 0f,
+                                            endY = height
+                                        )
                                     )
-                                )
 
-                                // Draw Path Outlines
-                                drawPath(
-                                    path = path,
-                                    color = BrandLime,
-                                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-                                )
+                                    // Draw Path Outlines
+                                    drawPath(
+                                        path = path,
+                                        color = BrandLime,
+                                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                                    )
 
-                                // Peak Target Point Highlight
-                                val peakX = width * 0.83f
-                                val peakY = height * 0.25f
-
-                                drawCircle(
-                                    color = BrandLime,
-                                    radius = 4.dp.toPx(),
-                                    center = Offset(peakX, peakY)
-                                )
-                                drawCircle(
-                                    color = BrandLime.copy(alpha = 0.2f),
-                                    radius = 10.dp.toPx(),
-                                    center = Offset(peakX, peakY)
-                                )
+                                    // Draw node highlights
+                                    points.forEachIndexed { idx, pt ->
+                                        val isSelected = weeklyData[idx].dateLabel == selectedDay
+                                        drawCircle(
+                                            color = if (isSelected) BrandLime else BrandLime.copy(alpha = 0.5f),
+                                            radius = if (isSelected) 5.dp.toPx() else 3.dp.toPx(),
+                                            center = pt
+                                        )
+                                        if (isSelected) {
+                                            drawCircle(
+                                                color = BrandLime.copy(alpha = 0.2f),
+                                                radius = 11.dp.toPx(),
+                                                center = pt
+                                            )
+                                        }
+                                    }
+                                }
                             }
 
-                            // Tooltip positioned exactly near peak coordinates
-                            Box(
-                                modifier = Modifier
-                                    .padding(start = 135.dp, top = 2.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(BrandLime)
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "Rp 320.000",
-                                    color = Color(0xFF131f00),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                            // Tooltip positioned dynamically for the selected day
+                            if (weeklyData.isNotEmpty()) {
+                                val selectedIndex = weeklyData.indexOfFirst { it.dateLabel == selectedDay }.coerceAtLeast(0)
+                                val selectedDayData = weeklyData.getOrNull(selectedIndex)
+                                val tooltipSpend = selectedDayData?.totalSpend ?: 0.0
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 2.dp),
+                                    contentAlignment = when (selectedIndex) {
+                                        0 -> Alignment.TopStart
+                                        6 -> Alignment.TopEnd
+                                        else -> Alignment.TopCenter
+                                    }
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(BrandLime)
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = formatRupiah(tooltipSpend),
+                                            color = Color(0xFF131f00),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         // Day Labels row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            val days = listOf("M", "T", "W", "T", "F", "S", "S")
-                            days.forEach { day ->
-                                Text(
-                                    text = day,
-                                    color = if (day == "S") BrandLime else TextGrayMuted,
-                                    fontWeight = if (day == "S") FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 11.sp,
-                                    modifier = Modifier.weight(1f),
-                                    textAlign = TextAlign.Center
+                            weeklyData.forEach { dayData ->
+                                val isSelected = dayData.dateLabel == selectedDay
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(if (isSelected) Color(0xFF1F2937) else Color.Transparent)
+                                        .clickable {
+                                            viewModel.selectedDay.value = dayData.dateLabel
+                                        }
+                                        .padding(vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            text = dayData.initialLabel,
+                                            color = if (isSelected) BrandLime else TextGrayMuted,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            fontSize = 11.sp,
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = dayData.dateLabel.take(3),
+                                            color = if (isSelected) BrandLime else TextGrayMuted.copy(alpha = 0.6f),
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            fontSize = 9.sp,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Transactions of Clicked Day List Header
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Transactions on $selectedDay",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${selectedTransactions.size} Transaksi",
+                        color = TextGrayMuted,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            // Transactions of Clicked Day List Items
+            if (selectedTransactions.isEmpty()) {
+                item {
+                    Surface(
+                        color = Color(0xFF161B26),
+                        border = BorderStroke(1.dp, Color(0xFF1F2937).copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Tidak ada transaksi di hari $selectedDay",
+                                color = TextGrayMuted,
+                                fontSize = 13.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(selectedTransactions) { tx ->
+                    Surface(
+                        color = Color(0xFF16202E),
+                        border = BorderStroke(1.dp, Color(0xFF1F2937).copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF161B26))
+                                    .border(1.dp, Color(0xFF1F2937), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = when (tx.category) {
+                                        "Food" -> Icons.Filled.Restaurant
+                                        "Transport" -> Icons.Filled.DirectionsCar
+                                        "Bills" -> Icons.Filled.ReceiptLong
+                                        "Shopping" -> Icons.Filled.ShoppingBag
+                                        "Entertainment" -> Icons.Filled.Celebration
+                                        else -> Icons.Filled.MoreHoriz
+                                    },
+                                    contentDescription = tx.category,
+                                    tint = when (tx.category) {
+                                        "Food" -> BrandOrange
+                                        "Transport" -> BrandBlue
+                                        "Bills" -> BrandPurple
+                                        "Shopping" -> BrandGreen
+                                        "Entertainment" -> BrandLime
+                                        else -> TextGrayMuted
+                                    },
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = tx.merchant,
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "${formatDateTime(tx.dateTime, "HH:mm")} • ${tx.category}",
+                                    color = TextGrayMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
+
+                            Text(
+                                text = "-${formatRupiah(tx.amount)}",
+                                color = BrandErrorRed,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }

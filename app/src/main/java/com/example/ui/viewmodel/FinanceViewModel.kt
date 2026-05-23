@@ -11,6 +11,15 @@ import com.example.data.repository.FinanceRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+data class AnalyticsDay(
+    val dateLabel: String,
+    val initialLabel: String,
+    val totalSpend: Double,
+    val dateInMillis: Long,
+    val xPercent: Float,
+    val yPercent: Float
+)
+
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: FinanceRepository
@@ -83,6 +92,109 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
         result
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    private fun getTodayIndoName(): String {
+        val cal = java.util.Calendar.getInstance()
+        return when (cal.get(java.util.Calendar.DAY_OF_WEEK)) {
+            java.util.Calendar.SUNDAY -> "Minggu"
+            java.util.Calendar.MONDAY -> "Senin"
+            java.util.Calendar.TUESDAY -> "Selasa"
+            java.util.Calendar.WEDNESDAY -> "Rabu"
+            java.util.Calendar.THURSDAY -> "Kamis"
+            java.util.Calendar.FRIDAY -> "Jumat"
+            java.util.Calendar.SATURDAY -> "Sabtu"
+            else -> "Senin"
+        }
+    }
+
+    val selectedDay = MutableStateFlow(getTodayIndoName())
+
+    val weeklyAnalyticsData: StateFlow<List<AnalyticsDay>> = transactions
+        .map { txList ->
+            val calendar = java.util.Calendar.getInstance()
+            calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+            calendar.set(java.util.Calendar.MINUTE, 0)
+            calendar.set(java.util.Calendar.SECOND, 0)
+            calendar.set(java.util.Calendar.MILLISECOND, 0)
+
+            val daysRangeList = (6 downTo 0).map { offset ->
+                val cal = java.util.Calendar.getInstance()
+                cal.timeInMillis = calendar.timeInMillis
+                cal.add(java.util.Calendar.DAY_OF_YEAR, -offset)
+                cal
+            }
+
+            val analyticsDays = daysRangeList.mapIndexed { index, cal ->
+                val startOfDay = cal.timeInMillis
+                val endOfDay = cal.timeInMillis + (24 * 60 * 60 * 1000) - 1
+
+                val dayTransactions = txList.filter { it.dateTime in startOfDay..endOfDay }
+                val daySpend = dayTransactions.sumOf { it.amount }
+
+                val dayName = when (cal.get(java.util.Calendar.DAY_OF_WEEK)) {
+                    java.util.Calendar.SUNDAY -> "Minggu"
+                    java.util.Calendar.MONDAY -> "Senin"
+                    java.util.Calendar.TUESDAY -> "Selasa"
+                    java.util.Calendar.WEDNESDAY -> "Rabu"
+                    java.util.Calendar.THURSDAY -> "Kamis"
+                    java.util.Calendar.FRIDAY -> "Jumat"
+                    java.util.Calendar.SATURDAY -> "Sabtu"
+                    else -> ""
+                }
+
+                val initial = when (cal.get(java.util.Calendar.DAY_OF_WEEK)) {
+                    java.util.Calendar.SUNDAY -> "M"
+                    java.util.Calendar.MONDAY -> "S"
+                    java.util.Calendar.TUESDAY -> "S"
+                    java.util.Calendar.WEDNESDAY -> "R"
+                    java.util.Calendar.THURSDAY -> "K"
+                    java.util.Calendar.FRIDAY -> "J"
+                    java.util.Calendar.SATURDAY -> "S"
+                    else -> ""
+                }
+
+                val xPercent = index / 6.0f
+
+                AnalyticsDay(
+                    dateLabel = dayName,
+                    initialLabel = initial,
+                    totalSpend = daySpend,
+                    dateInMillis = startOfDay,
+                    xPercent = xPercent,
+                    yPercent = 0.0f
+                )
+            }
+
+            val maxSpend = analyticsDays.maxOfOrNull { it.totalSpend } ?: 0.0
+
+            analyticsDays.map { day ->
+                val yPercent = if (maxSpend > 0.0) {
+                    (day.totalSpend / maxSpend).toFloat()
+                } else {
+                    0.0f
+                }
+                day.copy(yPercent = yPercent)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val selectedDayTransactions: StateFlow<List<Transaction>> = combine(transactions, selectedDay) { txList, selDay ->
+        txList.filter { tx ->
+            val cal = java.util.Calendar.getInstance()
+            cal.timeInMillis = tx.dateTime
+            val dayName = when (cal.get(java.util.Calendar.DAY_OF_WEEK)) {
+                java.util.Calendar.SUNDAY -> "Minggu"
+                java.util.Calendar.MONDAY -> "Senin"
+                java.util.Calendar.TUESDAY -> "Selasa"
+                java.util.Calendar.WEDNESDAY -> "Rabu"
+                java.util.Calendar.THURSDAY -> "Kamis"
+                java.util.Calendar.FRIDAY -> "Jumat"
+                java.util.Calendar.SATURDAY -> "Sabtu"
+                else -> ""
+            }
+            dayName == selDay
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // UI Input States for Forms
     // Log Expense Modal Form
