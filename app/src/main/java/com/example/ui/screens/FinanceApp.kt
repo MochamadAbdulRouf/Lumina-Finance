@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.app.DatePickerDialog
 import android.widget.Toast
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -21,6 +22,8 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -33,7 +36,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -77,47 +82,62 @@ fun formatDateTime(timestamp: Long, format: String = "dd MMM yyyy, HH:mm"): Stri
 class IndRupiahVisualTransformation : androidx.compose.ui.text.input.VisualTransformation {
     override fun filter(text: androidx.compose.ui.text.AnnotatedString): androidx.compose.ui.text.input.TransformedText {
         val originalText = text.text
-        if (originalText.isEmpty()) {
-            return androidx.compose.ui.text.input.TransformedText(androidx.compose.ui.text.AnnotatedString(""), androidx.compose.ui.text.input.OffsetMapping.Identity)
-        }
         
         val cleanText = originalText.replace("[^0-9]".toRegex(), "")
-        if (cleanText.isEmpty()) {
-            return androidx.compose.ui.text.input.TransformedText(androidx.compose.ui.text.AnnotatedString(""), androidx.compose.ui.text.input.OffsetMapping.Identity)
+        val formattedText = if (cleanText.isEmpty()) {
+            ""
+        } else {
+            val stringBuilder = StringBuilder()
+            var digitCount = 0
+            for (i in cleanText.length - 1 downTo 0) {
+                stringBuilder.append(cleanText[i])
+                digitCount++
+                if (digitCount % 3 == 0 && i != 0) {
+                    stringBuilder.append('.')
+                }
+            }
+            stringBuilder.reverse().toString()
         }
         
-        val stringBuilder = StringBuilder()
-        var digitCount = 0
-        for (i in cleanText.length - 1 downTo 0) {
-            stringBuilder.append(cleanText[i])
-            digitCount++
-            if (digitCount % 3 == 0 && i != 0) {
-                stringBuilder.append('.')
+        // Pre-calculate full mapping arrays for 0..length to avoid any IndexOutOfBoundsException or out-of-sync contracts
+        val origToTrans = IntArray(originalText.length + 1)
+        val transToOrig = IntArray(formattedText.length + 1)
+        
+        var digitsBefore = 0
+        for (i in 0..formattedText.length) {
+            transToOrig[i] = digitsBefore
+            if (i < formattedText.length && formattedText[i].isDigit()) {
+                digitsBefore++
             }
         }
-        val formattedText = stringBuilder.reverse().toString()
+        
+        var transInx = 0
+        var origInx = 0
+        while (origInx <= originalText.length) {
+            while (transInx < formattedText.length && transToOrig[transInx] < origInx) {
+                transInx++
+            }
+            while (transInx < formattedText.length && formattedText[transInx] == '.') {
+                transInx++
+            }
+            origToTrans[origInx] = transInx
+            origInx++
+        }
         
         val offsetMapping = object : androidx.compose.ui.text.input.OffsetMapping {
             override fun originalToTransformed(offset: Int): Int {
-                val realOffset = offset.coerceIn(0, cleanText.length)
-                var dotCount = 0
-                for (j in 1..realOffset) {
-                    if (j < cleanText.length && (cleanText.length - j) % 3 == 0) {
-                        dotCount++
-                    }
-                }
-                return realOffset + dotCount
+                return origToTrans[offset.coerceIn(0, originalText.length)]
             }
 
             override fun transformedToOriginal(offset: Int): Int {
-                val realOffset = offset.coerceIn(0, formattedText.length)
-                val substring = formattedText.substring(0, realOffset)
-                val dotCount = substring.count { it == '.' }
-                return (realOffset - dotCount).coerceIn(0, cleanText.length)
+                return transToOrig[offset.coerceIn(0, formattedText.length)]
             }
         }
         
-        return androidx.compose.ui.text.input.TransformedText(androidx.compose.ui.text.AnnotatedString(formattedText), offsetMapping)
+        return androidx.compose.ui.text.input.TransformedText(
+            text = androidx.compose.ui.text.AnnotatedString(formattedText),
+            offsetMapping = offsetMapping
+        )
     }
 }
 
@@ -1245,13 +1265,46 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
 
                         Spacer(modifier = Modifier.height(24.dp))
 
+                        var containerWidth by remember { mutableStateOf(0) }
+                        var containerHeight by remember { mutableStateOf(0) }
+
                         // Custom drawing Canvas area chart with peaks
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(120.dp)
+                                .onSizeChanged { size ->
+                                    containerWidth = size.width
+                                    containerHeight = size.height
+                                }
                         ) {
-                            Canvas(modifier = Modifier.fillMaxSize()) {
+                            Canvas(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .pointerInput(weeklyData) {
+                                        detectTapGestures { offset ->
+                                            if (weeklyData.isNotEmpty() && size.width > 0 && size.height > 0) {
+                                                val w = size.width.toFloat()
+                                                val h = size.height.toFloat()
+                                                var closestIndex = -1
+                                                var minDistance = Float.MAX_VALUE
+                                                for (idx in weeklyData.indices) {
+                                                    val day = weeklyData[idx]
+                                                    val x = if (weeklyData.size > 1) (w / (weeklyData.size - 1).toFloat()) * idx else 0f
+                                                    val y = h - (h * 0.75f * day.yPercent) - (h * 0.12f)
+                                                    val dist = (offset.x - x) * (offset.x - x) + (offset.y - y) * (offset.y - y)
+                                                    if (dist < minDistance) {
+                                                        minDistance = dist
+                                                        closestIndex = idx
+                                                    }
+                                                }
+                                                if (closestIndex != -1) {
+                                                    viewModel.selectDay(weeklyData[closestIndex].dateLabel)
+                                                }
+                                            }
+                                        }
+                                    }
+                            ) {
                                 val width = size.width
                                 val height = size.height
 
@@ -1310,13 +1363,13 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                                         val isSelected = weeklyData[idx].dateLabel == selectedDay
                                         drawCircle(
                                             color = if (isSelected) BrandLime else BrandLime.copy(alpha = 0.5f),
-                                            radius = if (isSelected) 5.dp.toPx() else 3.dp.toPx(),
+                                            radius = if (isSelected) 6.dp.toPx() else 3.dp.toPx(),
                                             center = pt
                                         )
                                         if (isSelected) {
                                             drawCircle(
-                                                color = BrandLime.copy(alpha = 0.2f),
-                                                radius = 11.dp.toPx(),
+                                                color = BrandLime.copy(alpha = 0.25f),
+                                                radius = 12.dp.toPx(),
                                                 center = pt
                                             )
                                         }
@@ -1324,33 +1377,43 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                                 }
                             }
 
-                            // Tooltip positioned dynamically for the selected day
-                            if (weeklyData.isNotEmpty()) {
-                                val selectedIndex = weeklyData.indexOfFirst { it.dateLabel == selectedDay }.coerceAtLeast(0)
-                                val selectedDayData = weeklyData.getOrNull(selectedIndex)
-                                val tooltipSpend = selectedDayData?.totalSpend ?: 0.0
+                            // Tooltip positioned dynamically for the selected day directly above the active data point
+                            if (weeklyData.isNotEmpty() && containerWidth > 0 && containerHeight > 0) {
+                                val selectedIndex = weeklyData.indexOfFirst { it.dateLabel == selectedDay }
+                                if (selectedIndex != -1) {
+                                    val selectedDayData = weeklyData[selectedIndex]
+                                    val tooltipSpend = selectedDayData.totalSpend
 
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 2.dp),
-                                    contentAlignment = when {
-                                        selectedIndex == 0 -> Alignment.TopStart
-                                        selectedIndex == weeklyData.size - 1 -> Alignment.TopEnd
-                                        else -> Alignment.TopCenter
-                                    }
-                                ) {
+                                    val x = if (weeklyData.size > 1) (containerWidth / (weeklyData.size - 1).toFloat()) * selectedIndex else 0f
+                                    val y = containerHeight - (containerHeight * 0.75f * selectedDayData.yPercent) - (containerHeight * 0.12f)
+
+                                    val density = LocalDensity.current
+                                    val xDp = with(density) { x.toDp() }
+                                    val yDp = with(density) { y.toDp() }
+
+                                    // Coerce xDp to prevent tooltip from clipping on the screen edges safely without empty range crashes
+                                    val maxVal = (with(density) { containerWidth.toDp() } - 94.dp).coerceAtLeast(4.dp)
+                                    val xDpCoerced = (xDp - 45.dp).coerceIn(4.dp, maxVal)
+
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
+                                            .offset(
+                                                x = xDpCoerced,
+                                                y = yDp - 32.dp
+                                            )
+                                            .width(90.dp)
+                                            .clip(RoundedCornerShape(6.dp))
                                             .background(BrandLime)
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            .border(1.dp, Color(0xFF131f00), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 4.dp, vertical = 3.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = formatRupiah(tooltipSpend),
                                             color = Color(0xFF131f00),
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
                                         )
                                     }
                                 }
@@ -1375,7 +1438,7 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(if (isSelected) Color(0xFF1F2937) else Color.Transparent)
                                         .clickable {
-                                            viewModel.selectedDay.value = dayData.dateLabel
+                                            viewModel.selectDay(dayData.dateLabel)
                                         }
                                         .padding(vertical = 6.dp),
                                     contentAlignment = Alignment.Center
@@ -1524,9 +1587,13 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
 
             // Budget vs Spent Limit status
             item {
-                val totalFunds = budgetSettings.balance + totalExpense
-                val percentUsed = if (totalFunds > 0) (totalExpense / totalFunds) else 0.0
-                val percentUsedInt = (percentUsed * 100).toInt()
+                val totalFunds = budgetSettings.balance + totalExpenseReactive
+                val percentUsed = if (totalFunds > 0.0) (totalExpenseReactive / totalFunds).toFloat() else 0.0f
+                val animatedPercentUsed by animateFloatAsState(
+                    targetValue = percentUsed,
+                    label = "percent_spent_anim"
+                )
+                val percentUsedInt = (percentUsed * 100f).toInt()
 
                 Column {
                     Row(
@@ -1558,7 +1625,7 @@ fun SpendingAnalyticsScreen(viewModel: FinanceViewModel) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             // Progress bar
                             LinearProgressIndicator(
-                                progress = percentUsed.toFloat(),
+                                progress = animatedPercentUsed,
                                 color = BrandLime,
                                 trackColor = Color(0xFF2B3544),
                                 modifier = Modifier

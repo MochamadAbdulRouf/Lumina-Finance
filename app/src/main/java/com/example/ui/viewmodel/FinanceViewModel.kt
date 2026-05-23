@@ -95,7 +95,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     val selectedTimeFilter = MutableStateFlow("This Month")
 
-    val selectedDay = MutableStateFlow("")
+    private val _userSelectedDay = MutableStateFlow("")
 
     val weeklyAnalyticsData: StateFlow<List<AnalyticsDay>> = combine(transactions, selectedTimeFilter) { txList, filter ->
         val result = when (filter) {
@@ -201,7 +201,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
 
         val maxSpend = result.maxOfOrNull { it.totalSpend } ?: 0.0
-        val scaledResult = result.map { day ->
+        result.map { day ->
             val yPercent = if (maxSpend > 0.0) {
                 (day.totalSpend / maxSpend).toFloat()
             } else {
@@ -209,20 +209,27 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             }
             day.copy(yPercent = yPercent)
         }
-
-        val currentSelected = selectedDay.value
-        val exists = scaledResult.any { it.dateLabel == currentSelected }
-        if (!exists && scaledResult.isNotEmpty()) {
-            val now = System.currentTimeMillis()
-            val closest = scaledResult.minByOrNull { Math.abs(it.dateInMillis - now) }
-            val defaultLabel = closest?.dateLabel ?: scaledResult.last().dateLabel
-            selectedDay.value = defaultLabel
-        }
-
-        scaledResult
     }
     .flowOn(kotlinx.coroutines.Dispatchers.Default)
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val selectedDay: StateFlow<String> = combine(_userSelectedDay, weeklyAnalyticsData) { userSel, points ->
+        if (points.isEmpty()) return@combine ""
+        val exists = points.any { it.dateLabel == userSel }
+        if (exists) {
+            userSel
+        } else {
+            val now = System.currentTimeMillis()
+            val closest = points.minByOrNull { Math.abs(it.dateInMillis - now) }
+            closest?.dateLabel ?: points.last().dateLabel
+        }
+    }
+    .flowOn(kotlinx.coroutines.Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
+    fun selectDay(label: String) {
+        _userSelectedDay.value = label
+    }
 
     val selectedDayTransactions: StateFlow<List<Transaction>> = combine(
         transactions,
